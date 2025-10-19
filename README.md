@@ -1,378 +1,416 @@
-# network
+# Network: Decentralized P2P Networking for Distributed Systems
 
-- [Project README](https://gitlab.com/nunet/device-management-service/-/blob/main/README.md)
-- [Release/Build Status](https://gitlab.com/nunet/device-management-service/-/releases)
-- [Changelog](https://gitlab.com/nunet/device-management-service/-/blob/main/CHANGELOG.md)
-- [License](https://www.apache.org/licenses/LICENSE-2.0.txt)
-- [Contribution Guidelines](https://gitlab.com/nunet/device-management-service/-/blob/main/CONTRIBUTING.md)
-- [Code of Conduct](https://gitlab.com/nunet/device-management-service/-/blob/main/CODE_OF_CONDUCT.md)
-- [Secure Coding Guidelines](https://gitlab.com/nunet/team-processes-and-guidelines/-/blob/main/secure_coding_guidelines/README.md)
+`network` is a comprehensive networking package for building decentralized peer-to-peer systems. It provides libp2p-based communication, DHT discovery, gossipsub pub/sub messaging, and IP-over-libp2p virtual networking capabilities. This package forms the networking foundation for distributed applications requiring secure, NAT-traversing communication in trustless environments.
 
-## Table of Contents
+**Origin:** This package was extracted from and is actively used by [NuNet Device Management Service (DMS)](https://gitlab.com/nunet/device-management-service), where it serves as the core networking layer for coordinating compute resources across a decentralized network.
 
-1. [Description](#description)
-2. [Structure and Organisation](#structure-and-organisation)
-3. [Class Diagram](#class-diagram)
-4. [Functionality](#functionality)
-5. [Data Types](#data-types)
-6. [Testing](#testing)
-7. [Proposed Functionality/Requirements](#proposed-functionality--requirements)
-8. [References](#references)
+## Overview
 
-## Specification
+The `network` package provides:
+- **libp2p Integration**: Full-featured libp2p host with DHT, gossipsub, and custom protocols
+- **P2P Discovery**: Automatic peer discovery via DHT and rendezvous points
+- **Virtual Networking**: IP-over-libp2p tunneling for transparent network connectivity between peers
+- **NAT Traversal**: Automatic relay and hole-punching for connectivity behind NATs
+- **Pub/Sub Messaging**: Topic-based broadcasting using gossipsub
+- **Background Tasks**: Scheduled tasks for peer discovery and network maintenance
+- **Configuration Management**: Flexible configuration with validation and defaults
 
-### Description
+## Installation
 
-This package contains all network related code such as p2p communication, ip over libp2p and other networks that might be needed in the future.
-
-### Structure and Organisation
-
-Here is quick overview of the contents of this pacakge:
-
-* [README](https://gitlab.com/nunet/device-management-service/-/tree/main/network/README.md): Current file which is aimed towards developers who wish to use and modify the package functionality.
-
-* [network](https://gitlab.com/nunet/device-management-service/-/tree/main/network/network.go): This file defines Network and Messenger interfaces and a method to create a new network.
-
-* [types](https://gitlab.com/nunet/device-management-service/-/tree/main/network/types.go): This file defines the VPN interface. 
-
-* [libp2p](https://gitlab.com/nunet/device-management-service/-/tree/main/network/libp2p): This contains code related to libp2p functionality.
-
-* [specs](https://gitlab.com/nunet/device-management-service/-/tree/main/network/specs): This contains class diagram of the package built in plantuml.
-
-### Class Diagram
-
-The class diagram for the network package is shown below.
-
-#### Source file
-
-[network Class Diagram](https://gitlab.com/nunet/device-management-service/-/blob/main/network/specs/class_diagram.puml)
-
-#### Rendered from source file
-
-```plantuml
-!$rootUrlGitlab = "https://gitlab.com/nunet/device-management-service/-/raw/main"
-!$packageRelativePath = "/network"
-!$packageUrlGitlab = $rootUrlGitlab + $packageRelativePath
- 
-!include $packageUrlGitlab/specs/class_diagram.puml
+```bash
+go get github.com/depinkit/network
 ```
 
-### Functionality
+## Quick Start
 
-`TBD`
-
-**Note: the functionality of DMS is being currently developed. See the [proposed](#7-proposed-functionality--requirements) section for the suggested design of interfaces and methods.**
-
-### Data Types
-
-`TBD`
-
-**Note: the functionality of DMS is being currently developed. See the [proposed](#7-proposed-functionality--requirements) section for the suggested data types.**
-
-### Testing
-
-`TBD`
-
-### Proposed Functionality / Requirements 
-
-#### List of issues
-
-All issues that are related to the implementation of `network` package can be found below. These include any proposals for modifications to the package or new data structures needed to cover the requirements of other packages.
-
-- [network package implementation](https://gitlab.com/groups/nunet/-/issues/?sort=created_date&state=opened&label_name%5B%5D=collaboration_group_24%3A%3A39&first_page_size=20)
-
-#### Interfaces and methods
-
-##### `proposed` Network interface
+### Basic P2P Node
 
 ```go
-// Network defines an interface provided by DMS to be implemented by various
-// network providers. This could be libp2p, or other p2p providers.
+package main
+
+import (
+    "context"
+    "time"
+    
+    "github.com/depinkit/network"
+    "github.com/depinkit/network/config"
+    "github.com/depinkit/network/libp2p"
+    "github.com/spf13/afero"
+    "gitlab.com/nunet/device-management-service/types"
+)
+
+func main() {
+    // Create configuration
+    cfg := &config.Config{
+        P2P: config.P2P{
+            ListenAddress: []string{
+                "/ip4/0.0.0.0/tcp/9000",
+                "/ip4/0.0.0.0/udp/9001/quic-v1",
+            },
+            BootstrapPeers: []string{
+                // Bootstrap peer addresses
+            },
+        },
+    }
+    
+    // Create libp2p configuration
+    libp2pCfg := &types.Libp2pConfig{
+        PrivateKey:     generatePrivKey(), // Your key generation
+        Rendezvous:     "my-network",
+        ListenAddress:  cfg.P2P.ListenAddress,
+        BootstrapPeers: parseBootstrapPeers(cfg.P2P.BootstrapPeers),
+    }
+    
+    // Create libp2p instance
+    fs := afero.NewOsFs()
+    l, err := libp2p.NewLibp2p(libp2pCfg, fs)
+    if err != nil {
+        panic(err)
+    }
+    
+    // Initialize and start
+    if err := l.Init(cfg); err != nil {
+        panic(err)
+    }
+    if err := l.Start(); err != nil {
+        panic(err)
+    }
+    
+    defer l.Stop()
+    
+    // Your application logic here
+    select {}
+}
+```
+
+### Custom Protocol Handler
+
+```go
+// Register a custom protocol handler
+handler := func(stream network.Stream) {
+    defer stream.Close()
+    
+    // Read from stream
+    buf := make([]byte, 1024)
+    n, err := stream.Read(buf)
+    if err != nil {
+        return
+    }
+    
+    // Process and respond
+    response := processMessage(buf[:n])
+    stream.Write(response)
+}
+
+l.SetStreamHandler("/my-protocol/1.0.0", handler)
+```
+
+### Pub/Sub Messaging
+
+```go
+import (
+    "github.com/depinkit/network/libp2p"
+)
+
+// Subscribe to a topic
+topic := "/my-app/messages"
+if err := l.Subscribe(context.Background(), topic); err != nil {
+    panic(err)
+}
+
+// Add handler for messages on this topic
+validator := func(msg *libp2p.Message) bool {
+    // Validate message
+    return true
+}
+
+l.RegisterTopicValidator(topic, 0, validator, libp2p.ValidatorOptions{})
+
+// Publish a message
+message := []byte("Hello, network!")
+if err := l.Publish(context.Background(), topic, message); err != nil {
+    log.Error("Failed to publish")
+}
+```
+
+### Virtual Network (IP-over-libp2p)
+
+```go
+// Create a virtual subnet
+subnetCfg := &libp2p.SubnetConfig{
+    CIDR:      "10.0.0.0/24",
+    Routes:    map[string]peer.ID{
+        "10.0.0.2": peerID,
+    },
+    DNSZones: map[string]string{
+        "app.local": "10.0.0.2",
+    },
+}
+
+subnet, err := l.CreateSubnet(context.Background(), "my-subnet", subnetCfg)
+if err != nil {
+    panic(err)
+}
+defer subnet.Close()
+
+// Now you can use standard networking to connect to peers
+// via their virtual IPs (e.g., dial tcp://10.0.0.2:8080)
+```
+
+## Package Structure
+
+```
+github.com/depinkit/network/
+├── config/              - Configuration management
+│   ├── config.go        - Config structures
+│   ├── load.go          - Viper-based config loading
+│   └── config_test.go
+├── background_tasks/    - Task scheduling
+│   ├── scheduler.go     - Background task scheduler
+│   ├── task.go          - Task definitions
+│   ├── trigger.go       - Periodic, cron, event triggers
+│   └── *_test.go
+├── libp2p/              - libp2p implementation
+│   ├── libp2p.go        - Main libp2p host
+│   ├── host.go          - Host creation and setup
+│   ├── dht.go           - DHT operations
+│   ├── discover.go      - Peer discovery
+│   ├── subnet.go        - Virtual networking
+│   ├── dns.go           - DNS for virtual networks
+│   └── *_test.go
+├── utils/               - Utility functions
+│   └── utils.go         - Port allocation, network utils
+├── network.go           - Network interface definitions
+├── vnet.go              - Virtual network implementation
+└── types.go             - Common types
+```
+
+## Core Components
+
+### Network Interface
+
+The `Network` interface defines the contract for network implementations:
+
+```go
 type Network interface {
-	// Config sets the configuration for the network in
-	Config() error
-
-	// Init initializes the node with config specific in Config() phase.
-	// tags: Start
-	Init() error
-
-	// EventRegister sets handlers to handle events such as change of local address
-	EventRegister() error
-
-	// Dial connects to a peer
-	// tags: ConnectPeer
-	Dial() error
-
-	// Listen listens on a connection. Example could be a stream for libp2p connection.
-	Listen() error
-
-	// Status returns status of current host in regards to implementation.
-	// Output must follow a generic struct.
-	Status() bool
-
-	// Tears down network interface.
-	Stop() error
+    Init(cfg *config.Config) error
+    Start() error
+    Stop() error
+    Host() host.Host
+    DHT() *dht.IpfsDHT
 }
 ```
 
-Let's have a look at the methods and rationale behind them:
+### Libp2p Implementation
 
-1. `Config()`:
+The `libp2p.Libp2p` type provides a full-featured implementation with:
+- **DHT**: Distributed hash table for content and peer routing
+- **Gossipsub**: Efficient topic-based pub/sub
+- **Relay**: Automatic relay for NAT traversal
+- **AutoNAT**: NAT detection and configuration
+- **Hole Punching**: Direct connections through NATs
+- **Custom Protocols**: Register handlers for custom protocols
+- **Virtual Networks**: IP tunneling over libp2p connections
 
-`Config` is where host is prepared with desired settings. Settings are loaded from the file if required. An example in libp2p implementation would be to configure parameters which needs to be passed to `libp2p.New()` method, it can also a good place to set the stream handlers.
+### Configuration
 
-Things like private network are configured at this point.
-
-2. `Init()`:
-
-`Init` or `Start` starts up the host. This is a good place to start discovery and starting goroutines for fetching DHT update and updating peerstore.
-
-3. `EventRegister()`:
-
-In libp2p, we can listen to specific events. `EventRegister` is to set handler to such event. A few events in libp2p are:
-
-- EvtLocalAddressesUpdated
-- EvtLocalReachabilityChanged
-- EvtPeerIdentificationCompleted
-- EvtNATDeviceTypeChanged
-- EvtPeerConnectednessChanged
-
-More events can be found [here](https://github.com/libp2p/go-libp2p/tree/master/core/event)
-
-4. `Dial()`:
-
-`Dial` is for connecting to a peer. When peer A dials peer B, peer B has to `Listen` to the incoming connection.
-
-5. `Listen()`: 
-
-`Listen` is the counterpart to `Dial`. Read more about listening and dialing [here](https://docs.libp2p.io/concepts/transports/listen-and-dial/)
-
-6. `Status()`:
-
-`TBD`
-
-- All peers we are corrently connected to.
-- ??
-
-7. `Stop()`: 
-
-Basically it's like shutting down the peer. It is opposite of `Init` or `Start`.
-
-##### `proposed` VPN interface
+Configuration is flexible and supports multiple sources:
 
 ```go
-type VPN interface {
-	// Start takes in an initial routing table and starts the VPN.
-	Start() error
-
-	// AddPeer is for adding the peers after the VPN has been started.
-	// This should also update the routing table with the new peer.
-	AddPeer() error
-
-	// RemovePeer is oppisite of AddPeer. It should also update the routing table.
-	RemovePeer() error
-
-	// Stop tears down the VPN.
-	Stop() error
+cfg := &config.Config{
+    General: config.General{
+        DataDir: "/var/lib/myapp",
+        Debug:   true,
+    },
+    P2P: config.P2P{
+        ListenAddress: []string{
+            "/ip4/0.0.0.0/tcp/9000",
+            "/ip4/0.0.0.0/udp/9001/quic-v1",
+        },
+        BootstrapPeers: []string{
+            "/ip4/bootstrap.example.com/tcp/4001/p2p/12D3...",
+        },
+        Memory:          512,  // MB for libp2p
+        FileDescriptors: 2048,
+    },
 }
 ```
 
-Let's have a look at the methods and background behind them:
+### Background Tasks
 
-`TBD`: Parameter are still to be defined. Should we pass the peer ID? Or make it more generic to have IP addresses?
+The scheduler manages periodic tasks like peer discovery:
 
-1. `Start()`:
+```go
+import "github.com/depinkit/network/background_tasks"
 
-`Start()` takes in initial list of hosts and assigns each peer a private IP.
+scheduler := background_tasks.NewScheduler(10, time.Second)
 
-2. `AddPeer()`:
+task := &background_tasks.Task{
+    Name:        "Heartbeat",
+    Description: "Send periodic heartbeat",
+    Function: func(_ interface{}) error {
+        return sendHeartbeat()
+    },
+    Triggers: []background_tasks.Trigger{
+        &background_tasks.PeriodicTrigger{
+            Interval: 30 * time.Second,
+        },
+    },
+}
 
-`AddPeer()` is for adding a new peer to the VPN after the VPN is created. This should also update the routing table with the new peer. It should also not affect the existing peers, and should not lead to any IP collision.
-
-3. `RemovePeer()`:
-
-`RemovePeer()` should remove a peer from remove peers from the private network.
-
-4. `Stop()`:
-
-`TBD`: What should be done when the VPN is stopped? Should all the peers be removed from the network?
-
-##### `proposed` Internal APIs
-
-1. `publishJob`
-
-* signature: `publishJob(dms.orchestrator.BidRequest)` <br/>
-
-* input: `Bid request` <br/>
-
-* output: None
-
-`publishJob` is responsible for publishing a request for bid to the network for a job received by the DMS. 
-
-2. There should be a top level package for set of functions/initlializers for management of:
-
-- TUN/TAP device
-- Virtual ethernet
-- Virtual switch
-- Firewall management
-
-##### `proposed` sendLibP2PMessage
-
-`sendLibP2PMessage` shall be called by `dms.orchestrator.sendMessage()` function ito send the `telemetry.Message` object via libP2P interface defined in `network` package. It is a low level implementation of sending messages in NuNet network via libp2p. 
-
-##### `proposed` receiveLibP2PMessage
-
-`TBD`
-
-##### `proposed` processMessage
-
-`TBD`
-
-
-#### `proposed` Private Swarm
-**Note: Private Swarm functionality is expected to be moved to libp2p sub-package once specific methods and interfaces have been defined**
-
-The private swarm functionality allows users to create and join a private network with some authorised peers. Note that these peers need to be identified beforehand to use this feature. It is also required that all peers have onboarded to the Nunet network and are using the same channel. It is because the identification of peers is done using libp2p public key generated during the onboarding process.
-
-The creation of private network consists of the following operations.
-
-##### Configure Private Network
-
-The user who wants to create the private network should have a list of `peer ids` it wants to authorise to join the private network. This process configures the network by creating a swarm key and a bootstrap node.
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor sp-user as Service Provider User
-  participant asset as Service Provider Machine
-  participant dmssp as DMS <br> on Service Provider
-  participant dmscp as DMS <br> on Compute Provider
-
-rect rgb(252, 242, 232)
-    loop Configuration of private network
-      sp-user -->> dmssp: Request to configure a private network for authorised peer ids
-      dmssp ->> asset: Save the peer ids to database
-      
-      loop retrieve public keys for all peer ids
-      dmssp ->> dmscp: Read the public key 
-      dmssp ->> asset: Save the public key to database
-      end 
-
-      dmssp ->> dmssp: Create a swarm key
-      dmssp ->> dmssp: Create a bootstrap node
-      dmssp ->> asset: Save swarm key and bootstrap node id to database
-      dmssp ->> sp-user: Status of private network configuration
-    end
-  end
+scheduler.AddTask(task)
+scheduler.Start()
+defer scheduler.Stop()
 ```
 
-##### Exchange Swarm Key 
-The authorised user who wants to connect to the private network will request for a swarm key from the node that has configured the private network. The node which has created the swarm key shares it with the authorised user when requested. The authentication of the user is based on its public key.
+## Advanced Features
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor sp-user as Service Provider User
-  participant dmssp as DMS <br> on Service Provider
-  participant dmscp as DMS <br> on Compute Provider
-  actor cp-user as Compute Provider User
+### DHT Operations
 
-rect rgb(252, 242, 232)
-    loop Swarm key exchange
-      cp-user -->> dmscp: Request to retrieve private network swarm key from a peer
-      dmscp ->> dmscp: Creates a request message and signs it using its private key
-      dmscp ->> dmssp: Sends the signed request message for swarm key to SP DMS
-      loop Share swarm key
-      dmssp ->> dmssp: Checks if received message is signed by a authorised peer
-      dmssp ->> dmssp: Encrypts the swarm key with public key of CP DMS
-      dmssp ->> dmssp: Creates a response message and signs it with its private key
-      dmssp ->> dmscp: Shares the encrypted swarm key and signed message 
-      dmssp ->> sp-user: Notifies user about swarm key sharing to CP DMS
-      end 
-      dmscp ->> dmscp: Validates that message is signed by the correct SP DMS
-      dmscp ->> dmscp: Decrypts the swarm key using its private key
-      dmscp ->> dmscp: Saves the swarm key to the database
-    end
-  end
+```go
+// Provide a value in the DHT
+key := "/myapp/value"
+value := []byte("important data")
+if err := l.DHT().PutValue(ctx, key, value); err != nil {
+    log.Error("Failed to put value")
+}
+
+// Find a value in the DHT
+val, err := l.DHT().GetValue(ctx, key)
+if err != nil {
+    log.Error("Failed to get value")
+}
 ```
 
-##### Join Private Network
-The DMS will disconnect from the public network and join the private network using the shared swarm key.
+### Peer Discovery
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor sp-user as Service Provider User
-  participant dmssp as DMS <br> on Service Provider
-  participant dmscp as DMS <br> on Compute Provider
-  actor cp-user as Compute Provider User
+```go
+// Find peers providing a service
+peers, err := l.FindPeers(ctx, "my-service", 10)
+if err != nil {
+    log.Error("Discovery failed")
+}
 
-rect rgb(252, 242, 232)
-    loop Join private network
-      sp-user -->> dmscp: Request to join private network
-      dmssp ->> dmssp: Disconnect from public network
-      dmssp ->> dmssp: Read the swarm key from database
-      dmssp ->> dmssp: Configure the swarm key at the required path
-      dmssp ->> dmssp: Start the network as bootstrap node
-      dmssp ->> sp-user: Notify user  
-    end
-    loop Join private network
-      cp-user -->> dmscp: Request to join private network
-      dmscp ->> dmscp: Disconnect from public network
-      dmscp ->> dmscp: Read the swarm key from database
-      dmscp ->> dmscp: Configure the swarm key at the required path
-      dmscp ->> dmscp: Connect to the private network
-      dmscp ->> cp-user: Notify user
-      end
-  end
+for _, p := range peers {
+    // Connect to peer
+    if err := l.Host().Connect(ctx, p); err != nil {
+        log.Warnf("Failed to connect to %s", p.ID)
+    }
+}
 ```
 
-##### Disconnect Private Network
-The DMS will disconnect from the private network and join the public network the user onboarded on to.
+### Connection Management
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor sp-user as Service Provider User
-  participant dmssp as DMS <br> on Service Provider
+```go
+// Get connected peers
+peers := l.Host().Network().Peers()
+log.Infof("Connected to %d peers", len(peers))
 
-rect rgb(252, 242, 232)
-    loop Disconnect from private network and connect to public network
-      sp-user -->> dmssp: Request to disconnect from private network
-      dmssp ->> dmssp: Removes the swarm key from the configuration
-      dmssp ->> dmssp: Read the public channel from the database
-      dmssp ->> dmssp: Connect to the channel identified in the previous step
-      dmssp ->> sp-user: Confirmation of change in network
-    end
-
-  end
+// Get connection info
+for _, p := range peers {
+    conns := l.Host().Network().ConnsToPeer(p)
+    for _, conn := range conns {
+        log.Infof("Connection to %s via %s", 
+            p, conn.RemoteMultiaddr())
+    }
+}
 ```
 
-##### Rotate Swarm Key
-The DMS will generate a new swarm key for the private network and notify the authorised users.
+## Integration with DMS
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor sp-user as Service Provider User
-  participant dmssp as DMS <br> on Service Provider
+This package was extracted from [NuNet's Device Management Service](https://gitlab.com/nunet/device-management-service) and remains a core dependency. In DMS, it provides:
 
-rect rgb(252, 242, 232)
-    loop Rotate Swarm Key
-      sp-user -->> dmssp: Request to rotate swarm key
-      dmssp ->> dmssp: Generate a new swarm key
-      dmssp ->> dmssp: Save the new swarm key to the database
-      loop Notify authorised peers
-      dmssp ->> dmscp: Swarm key changed message
-      end 
-      dmssp ->> sp-user: Success message
-    end
+- **Node Communication**: Enables compute nodes to discover and communicate with each other
+- **Job Distribution**: Network substrate for distributing compute jobs across the network
+- **Virtual Networking**: Allows containerized workloads to communicate as if on the same network
+- **Secure Channels**: Establishes encrypted communication channels between nodes
+- **NAT Traversal**: Enables connectivity for nodes behind NATs and firewalls
 
-  end
+### Using with DMS Types
+
+Since this package uses some types from DMS, you'll need to import them:
+
+```go
+import (
+    "github.com/depinkit/network/libp2p"
+    "gitlab.com/nunet/device-management-service/types"
+)
+
+libp2pCfg := &types.Libp2pConfig{
+    // Configuration
+}
 ```
 
-### References
+## Dependencies
 
-- https://github.com/libp2p/go-libp2p/tree/master/core/event 
-- https://docs.libp2p.io/concepts/transports/listen-and-dial/ 
+### Core Dependencies
+- **libp2p**: `github.com/libp2p/go-libp2p`
+- **DHT**: `github.com/libp2p/go-libp2p-kad-dht`
+- **PubSub**: `github.com/libp2p/go-libp2p-pubsub`
+- **QUIC**: `github.com/quic-go/quic-go`
 
+### Depinkit Dependencies
+- **Crypto**: `github.com/depinkit/crypto` - Cryptographic operations
+- **DID**: `github.com/depinkit/did` - Decentralized identifiers
+
+### DMS Dependencies
+- **Types**: `gitlab.com/nunet/device-management-service/types`
+- **Observability**: `gitlab.com/nunet/device-management-service/observability`
+- **System Utils**: `gitlab.com/nunet/device-management-service/utils/sys`
+
+## Testing
+
+Run the full test suite:
+
+```bash
+go test ./...
+```
+
+Run tests for a specific package:
+
+```bash
+go test ./libp2p
+go test ./config
+```
+
+Run with coverage:
+
+```bash
+go test -cover ./...
+```
+
+## Architecture
+
+The network package is designed with modularity and extensibility in mind:
+
+1. **Interface-based Design**: Core functionality is exposed through interfaces, allowing for alternative implementations
+2. **Pluggable Components**: Different network backends can be swapped (currently libp2p)
+3. **Separation of Concerns**: Configuration, discovery, messaging, and virtual networking are independent modules
+4. **Background Processing**: Non-blocking operations are handled by the background task scheduler
+5. **Resource Management**: Configurable limits for memory, file descriptors, and connections
+
+## License
+
+Apache License 2.0
+
+## Related Projects
+
+- [**Actor**](https://github.com/depinkit/actor) - Secure actor programming framework that uses this network package
+- [**DMS**](https://gitlab.com/nunet/device-management-service) - Device Management Service that this package was extracted from
+- [**Crypto**](https://github.com/depinkit/crypto) - Cryptographic operations used by this package
+- [**DID**](https://github.com/depinkit/did) - Decentralized identifier support
+
+## Contributing
+
+Contributions are welcome! This package is part of the Depinkit organization and follows the same contribution guidelines as other Depinkit projects.
+
+## Support
+
+For issues and questions:
+- Open an issue on the repository
+- Check the [DMS documentation](https://gitlab.com/nunet/device-management-service)
+- Review libp2p documentation at https://github.com/libp2p/go-libp2p
+
+---
+
+**Part of the [Depinkit](https://github.com/depinkit) ecosystem for building decentralized applications.**
