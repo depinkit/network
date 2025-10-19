@@ -16,9 +16,9 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
-	backgroundtasks "gitlab.com/nunet/device-management-service/internal/background_tasks"
+	backgroundtasks "github.com/depinkit/network/background_tasks"
 
-	"gitlab.com/nunet/device-management-service/network/libp2p"
+	"github.com/depinkit/network/libp2p"
 	"gitlab.com/nunet/device-management-service/types"
 )
 

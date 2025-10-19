@@ -30,7 +30,7 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 	"google.golang.org/protobuf/proto"
 
-	dmscrypto "gitlab.com/nunet/device-management-service/lib/crypto"
+	dmscrypto "github.com/depinkit/crypto"
 	"gitlab.com/nunet/device-management-service/observability"
 	commonproto "gitlab.com/nunet/device-management-service/proto/generated/v1/common"
 	"gitlab.com/nunet/device-management-service/types"

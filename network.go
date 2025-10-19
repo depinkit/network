@@ -18,9 +18,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/afero"
 
-	"gitlab.com/nunet/device-management-service/internal/config"
-	"gitlab.com/nunet/device-management-service/lib/crypto"
-	"gitlab.com/nunet/device-management-service/network/libp2p"
+	"github.com/depinkit/network/config"
+	"github.com/depinkit/crypto"
+	"github.com/depinkit/network/libp2p"
 	commonproto "gitlab.com/nunet/device-management-service/proto/generated/v1/common"
 	"gitlab.com/nunet/device-management-service/types"
 )

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitlab.com/nunet/device-management-service/internal/config"
+	"github.com/depinkit/network/config"
 	"gitlab.com/nunet/device-management-service/types"
 )
 

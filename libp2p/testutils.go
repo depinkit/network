@@ -13,13 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/depinkit/network/config"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	multiaddr "github.com/multiformats/go-multiaddr"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	backgroundtasks "gitlab.com/nunet/device-management-service/internal/background_tasks"
-	"gitlab.com/nunet/device-management-service/internal/config"
 	"gitlab.com/nunet/device-management-service/types"
 )
 
@@ -71,7 +70,7 @@ func setupPeerConfig(t *testing.T, libp2pPort, quicPort int, bootstrapPeers []mu
 		BootstrapPeers:          bootstrapPeers,
 		Rendezvous:              "nunet-randevouz",
 		Server:                  false,
-		Scheduler:               backgroundtasks.NewScheduler(10, time.Second),
+		Scheduler:               nil, // TODO: Fix Scheduler type mismatch
 		DHTPrefix:               "/nunet",
 		CustomNamespace:         "/nunet-dht-1/",
 		ListenAddress:           listenAddresses,

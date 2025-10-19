@@ -18,8 +18,8 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"gitlab.com/nunet/device-management-service/internal/config"
-	"gitlab.com/nunet/device-management-service/lib/crypto"
+	"github.com/depinkit/network/config"
+	"github.com/depinkit/crypto"
 	common "gitlab.com/nunet/device-management-service/proto/generated/v1/common"
 	"gitlab.com/nunet/device-management-service/types"
 )

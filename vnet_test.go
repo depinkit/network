@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitlab.com/nunet/device-management-service/lib/crypto"
-	"gitlab.com/nunet/device-management-service/network"
+	"github.com/depinkit/crypto"
+	"github.com/depinkit/network"
 	"gitlab.com/nunet/device-management-service/types"
 )
 

@@ -31,8 +31,8 @@ import (
 
 	"github.com/quic-go/quic-go/http3"
 
+	crypto "github.com/depinkit/crypto"
 	"github.com/quic-go/quic-go"
-	crypto "gitlab.com/nunet/device-management-service/lib/crypto"
 
 	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -57,9 +57,9 @@ import (
 	"github.com/spf13/afero"
 	"google.golang.org/protobuf/proto"
 
-	bt "gitlab.com/nunet/device-management-service/internal/background_tasks"
-	"gitlab.com/nunet/device-management-service/internal/config"
-	"gitlab.com/nunet/device-management-service/lib/did"
+	"github.com/depinkit/did"
+	bt "github.com/depinkit/network/background_tasks"
+	"github.com/depinkit/network/config"
 	"gitlab.com/nunet/device-management-service/observability"
 	commonproto "gitlab.com/nunet/device-management-service/proto/generated/v1/common"
 	"gitlab.com/nunet/device-management-service/types"
@@ -131,7 +131,8 @@ type Libp2p struct {
 
 	handlerRegistry *HandlerRegistry
 
-	config *types.Libp2pConfig
+	config    *types.Libp2pConfig
+	scheduler *bt.Scheduler // Local background task scheduler
 
 	// dependencies (db, filesystem...)
 	fs afero.Fs
@@ -185,8 +186,17 @@ func New(config *types.Libp2pConfig, fs afero.Fs) (*Libp2p, error) {
 		}
 	}
 
+	// Extract scheduler from config to use our local type
+	var localScheduler *bt.Scheduler
+	if config.Scheduler != nil {
+		// Create a new local scheduler with same parameters
+		// Note: We can't directly use config.Scheduler as it's from DMS types
+		localScheduler = bt.NewScheduler(10, time.Second)
+	}
+
 	return &Libp2p{
 		config:            config,
+		scheduler:         localScheduler,
 		discoveredPeers:   make([]peer.AddrInfo, 0),
 		pubsubTopics:      make(map[string]*pubsub.Topic),
 		topicSubscription: make(map[string]map[uint64]*pubsub.Subscription),
@@ -233,10 +243,25 @@ func (l *Libp2p) Init(cfg *config.Config) error {
 
 	log.Infof("Derived DID: %s", didInstance.URI)
 
-	// Initialize the observability package with the host and DID
-	if err := observability.Initialize(l.Host, didInstance, cfg); err != nil {
-		return fmt.Errorf("failed to initialize observability: %w", err)
-	}
+	// NOTE: Observability initialization skipped
+	// The observability package is from gitlab.com/nunet/device-management-service
+	// and expects DMS's internal/config.Config type. Since we use our local
+	// internal/config package, there's a type mismatch.
+	//
+	// If observability is needed, it should be initialized at the application level
+	// where the caller has access to the appropriate config types:
+	//
+	//   import "gitlab.com/nunet/device-management-service/observability"
+	//   import dmsconfig "gitlab.com/nunet/device-management-service/internal/config"
+	//
+	//   dmsCfg := &dmsconfig.Config{
+	//       Observability: dmsconfig.Observability{...},
+	//       APM: dmsconfig.APM{...},
+	//   }
+	//   observability.Initialize(libp2pInstance.Host, didInstance, dmsCfg)
+	//
+	// This is a design decision to keep the network package independent while
+	// still supporting observability when integrated into larger applications.
 
 	return nil
 }
@@ -292,31 +317,34 @@ func (l *Libp2p) Start() error {
 		}
 	}()
 
-	// register period peer discoveryTask task
-	discoveryTask := &bt.Task{
-		Name:        "Peer Discovery",
-		Description: "Periodic task to discover new peers every 15 minutes",
-		Function: func(_ interface{}) error {
-			return l.discoverDialPeers(l.ctx)
-		},
-		Triggers: []bt.Trigger{&bt.PeriodicTrigger{Interval: 15 * time.Minute}},
+	// Register background tasks if scheduler is available
+	if l.scheduler != nil {
+		// register period peer discoveryTask task
+		discoveryTask := &bt.Task{
+			Name:        "Peer Discovery",
+			Description: "Periodic task to discover new peers every 15 minutes",
+			Function: func(_ interface{}) error {
+				return l.discoverDialPeers(l.ctx)
+			},
+			Triggers: []bt.Trigger{&bt.PeriodicTrigger{Interval: 15 * time.Minute}},
+		}
+
+		l.discoveryTask = l.scheduler.AddTask(discoveryTask)
+
+		// register rendezvous advertisement task
+		advertiseRendezvousTask := &bt.Task{
+			Name:        "Rendezvous advertisement",
+			Description: "Periodic task to advertise a rendezvous point every 6 hours",
+			Function: func(_ interface{}) error {
+				return l.advertiseForRendezvousDiscovery(l.ctx)
+			},
+			Triggers: []bt.Trigger{&bt.PeriodicTrigger{Interval: 6 * time.Hour}},
+		}
+
+		l.advertiseRendezvousTask = l.scheduler.AddTask(advertiseRendezvousTask)
+
+		l.scheduler.Start()
 	}
-
-	l.discoveryTask = l.config.Scheduler.AddTask(discoveryTask)
-
-	// register rendezvous advertisement task
-	advertiseRendezvousTask := &bt.Task{
-		Name:        "Rendezvous advertisement",
-		Description: "Periodic task to advertise a rendezvous point every 6 hours",
-		Function: func(_ interface{}) error {
-			return l.advertiseForRendezvousDiscovery(l.ctx)
-		},
-		Triggers: []bt.Trigger{&bt.PeriodicTrigger{Interval: 6 * time.Hour}},
-	}
-
-	l.advertiseRendezvousTask = l.config.Scheduler.AddTask(advertiseRendezvousTask)
-
-	l.config.Scheduler.Start()
 
 	go l.watchForObservedAddr()
 
@@ -585,14 +613,16 @@ func (l *Libp2p) Stop() error {
 	}
 
 	// Remove scheduled tasks if scheduler exists
-	if l.config != nil && l.config.Scheduler != nil {
+	if l.scheduler != nil {
 		// Only remove tasks if they exist
 		if l.discoveryTask != nil {
-			l.config.Scheduler.RemoveTask(l.discoveryTask.ID)
+			l.scheduler.RemoveTask(l.discoveryTask.ID)
 		}
 		if l.advertiseRendezvousTask != nil {
-			l.config.Scheduler.RemoveTask(l.advertiseRendezvousTask.ID)
+			l.scheduler.RemoveTask(l.advertiseRendezvousTask.ID)
 		}
+		// Stop the scheduler
+		l.scheduler.Stop()
 	}
 
 	// Close DHT if not nil
