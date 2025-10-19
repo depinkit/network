@@ -18,11 +18,12 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/afero"
 
-	"github.com/depinkit/network/config"
 	"github.com/depinkit/crypto"
+	"github.com/depinkit/network/config"
 	"github.com/depinkit/network/libp2p"
+	"github.com/depinkit/network/types"
 	commonproto "gitlab.com/nunet/device-management-service/proto/generated/v1/common"
-	"gitlab.com/nunet/device-management-service/types"
+	dmsTypes "gitlab.com/nunet/device-management-service/types"
 )
 
 type (
@@ -43,11 +44,11 @@ const (
 // Messenger defines the interface for sending messages.
 type Messenger interface {
 	// SendMessage asynchronously sends a message to the given peer.
-	SendMessage(ctx context.Context, hostID string, msg types.MessageEnvelope, expiry time.Time) error
+	SendMessage(ctx context.Context, hostID string, msg dmsTypes.MessageEnvelope, expiry time.Time) error
 
 	// SendMessageSync synchronously sends a message to the given peer.
 	// This method blocks until the message has been sent.
-	SendMessageSync(ctx context.Context, hostID string, msg types.MessageEnvelope, expiry time.Time) error
+	SendMessageSync(ctx context.Context, hostID string, msg dmsTypes.MessageEnvelope, expiry time.Time) error
 }
 
 type Network interface {
@@ -59,11 +60,11 @@ type Network interface {
 	// Start starts the network
 	Start() error
 	// Stat returns the network information
-	Stat() types.NetworkStats
+	Stat() dmsTypes.NetworkStats
 	// Peers returns a list of peers from the peer store
 	Peers() []peer.ID
 	// Ping pings the given address and returns the PingResult
-	Ping(ctx context.Context, address string, timeout time.Duration) (types.PingResult, error)
+	Ping(ctx context.Context, address string, timeout time.Duration) (dmsTypes.PingResult, error)
 	// GetHostID returns the host ID
 	GetHostID() PeerID
 	// GetPeerPubKey returns the public key for the given peerID

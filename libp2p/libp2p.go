@@ -60,9 +60,10 @@ import (
 	"github.com/depinkit/did"
 	bt "github.com/depinkit/network/background_tasks"
 	"github.com/depinkit/network/config"
+	"github.com/depinkit/network/types"
 	"gitlab.com/nunet/device-management-service/observability"
 	commonproto "gitlab.com/nunet/device-management-service/proto/generated/v1/common"
-	"gitlab.com/nunet/device-management-service/types"
+	dmsTypes "gitlab.com/nunet/device-management-service/types"
 )
 
 const (
@@ -352,7 +353,7 @@ func (l *Libp2p) Start() error {
 }
 
 // RegisterStreamMessageHandler registers a stream handler for a specific protocol.
-func (l *Libp2p) RegisterStreamMessageHandler(messageType types.MessageType, handler StreamHandler) error {
+func (l *Libp2p) RegisterStreamMessageHandler(messageType dmsTypes.MessageType, handler StreamHandler) error {
 	if messageType == "" {
 		return errors.New("message type is empty")
 	}
@@ -365,7 +366,7 @@ func (l *Libp2p) RegisterStreamMessageHandler(messageType types.MessageType, han
 }
 
 // RegisterBytesMessageHandler registers a stream handler for a specific protocol and sends bytes to handler func.
-func (l *Libp2p) RegisterBytesMessageHandler(messageType types.MessageType, handler func(data []byte, peerId peer.ID)) error {
+func (l *Libp2p) RegisterBytesMessageHandler(messageType dmsTypes.MessageType, handler func(data []byte, peerId peer.ID)) error {
 	if messageType == "" {
 		return errors.New("message type is empty")
 	}
@@ -379,7 +380,7 @@ func (l *Libp2p) RegisterBytesMessageHandler(messageType types.MessageType, hand
 
 // HandleMessage registers a stream handler for a specific protocol and sends bytes to handler func.
 func (l *Libp2p) HandleMessage(messageType string, handler func(data []byte, peerId peer.ID)) error {
-	return l.RegisterBytesMessageHandler(types.MessageType(messageType), handler)
+	return l.RegisterBytesMessageHandler(dmsTypes.MessageType(messageType), handler)
 }
 
 func (l *Libp2p) handleReadBytesFromStream(s network.Stream) {
@@ -435,11 +436,11 @@ func (l *Libp2p) handleReadBytesFromStream(s network.Stream) {
 
 // UnregisterMessageHandler unregisters a stream handler for a specific protocol.
 func (l *Libp2p) UnregisterMessageHandler(messageType string) {
-	l.handlerRegistry.UnregisterHandler(types.MessageType(messageType))
+	l.handlerRegistry.UnregisterHandler(dmsTypes.MessageType(messageType))
 }
 
 // SendMessage asynchronously sends a message to a peer
-func (l *Libp2p) SendMessage(ctx context.Context, hostID string, msg types.MessageEnvelope, expiry time.Time) error {
+func (l *Libp2p) SendMessage(ctx context.Context, hostID string, msg dmsTypes.MessageEnvelope, expiry time.Time) error {
 	pid, err := peer.Decode(hostID)
 	if err != nil {
 		return fmt.Errorf("send: invalid peer ID: %w", err)
@@ -448,7 +449,7 @@ func (l *Libp2p) SendMessage(ctx context.Context, hostID string, msg types.Messa
 	// we are delivering a message to ourself
 	// we should use the handler to send the message to the handler directly which has been previously registered.
 	if pid == l.Host.ID() {
-		l.handlerRegistry.SendMessageToLocalHandler(msg.Type, msg.Data, pid)
+		l.handlerRegistry.SendMessageToLocalHandler(dmsTypes.MessageType(msg.Type), msg.Data, pid)
 		return nil
 	}
 
@@ -458,7 +459,7 @@ func (l *Libp2p) SendMessage(ctx context.Context, hostID string, msg types.Messa
 		go func() {
 			defer cancel()
 			defer func() { <-l.sendSemaphore }()
-			l.sendMessage(ctx, pid, msg, expiry, nil)
+			l.sendMessage(ctx, pid, dmsTypes.MessageEnvelope(msg), expiry, nil)
 		}()
 		return nil
 	case <-ctx.Done():
@@ -468,14 +469,14 @@ func (l *Libp2p) SendMessage(ctx context.Context, hostID string, msg types.Messa
 }
 
 // SendMessageSync synchronously sends a message to a peer
-func (l *Libp2p) SendMessageSync(ctx context.Context, hostID string, msg types.MessageEnvelope, expiry time.Time) error {
+func (l *Libp2p) SendMessageSync(ctx context.Context, hostID string, msg dmsTypes.MessageEnvelope, expiry time.Time) error {
 	pid, err := peer.Decode(hostID)
 	if err != nil {
 		return fmt.Errorf("send: invalid peer ID: %w", err)
 	}
 
 	if pid == l.Host.ID() {
-		l.handlerRegistry.SendMessageToLocalHandler(msg.Type, msg.Data, pid)
+		l.handlerRegistry.SendMessageToLocalHandler(dmsTypes.MessageType(msg.Type), msg.Data, pid)
 		return nil
 	}
 
@@ -483,7 +484,7 @@ func (l *Libp2p) SendMessageSync(ctx context.Context, hostID string, msg types.M
 	defer cancel()
 
 	result := make(chan error, 1)
-	l.sendMessage(ctx, pid, msg, expiry, result)
+	l.sendMessage(ctx, pid, dmsTypes.MessageEnvelope(msg), expiry, result)
 
 	return <-result
 }
@@ -509,7 +510,7 @@ func (l *Libp2p) newStream(ctx context.Context, pid peer.ID, proto protocol.ID) 
 	return s, nil
 }
 
-func (l *Libp2p) sendMessage(ctx context.Context, pid peer.ID, msg types.MessageEnvelope, expiry time.Time, result chan error) {
+func (l *Libp2p) sendMessage(ctx context.Context, pid peer.ID, msg dmsTypes.MessageEnvelope, expiry time.Time, result chan error) {
 	var err error
 	defer func() {
 		if result != nil {
@@ -571,7 +572,7 @@ func (l *Libp2p) sendMessage(ctx context.Context, pid peer.ID, msg types.Message
 }
 
 // OpenStream opens a stream to a remote address and returns the stream for the caller to handle.
-func (l *Libp2p) OpenStream(ctx context.Context, addr string, messageType types.MessageType) (network.Stream, error) {
+func (l *Libp2p) OpenStream(ctx context.Context, addr string, messageType dmsTypes.MessageType) (network.Stream, error) {
 	maddr, err := multiaddr.NewMultiaddr(addr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid multiaddress: %w", err)
@@ -586,7 +587,7 @@ func (l *Libp2p) OpenStream(ctx context.Context, addr string, messageType types.
 		return nil, fmt.Errorf("failed to connect to peer: %w", err)
 	}
 
-	stream, err := l.Host.NewStream(ctx, peerInfo.ID, protocol.ID(messageType))
+	stream, err := l.Host.NewStream(ctx, peerInfo.ID, protocol.ID(string(messageType)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open stream: %w", err)
 	}
@@ -663,12 +664,12 @@ func (l *Libp2p) Stop() error {
 }
 
 // Stat returns the status about the libp2p network.
-func (l *Libp2p) Stat() types.NetworkStats {
+func (l *Libp2p) Stat() dmsTypes.NetworkStats {
 	lAddrs := make([]string, 0, len(l.Host.Addrs()))
 	for _, addr := range l.Host.Addrs() {
 		lAddrs = append(lAddrs, addr.String())
 	}
-	return types.NetworkStats{
+	return dmsTypes.NetworkStats{
 		ID:         l.Host.ID().String(),
 		ListenAddr: strings.Join(lAddrs, ", "),
 	}
@@ -803,11 +804,11 @@ func (l *Libp2p) GetPeerPubKey(peerID PeerID) crypto.PubKey {
 //
 // TODO (Return error once): something that was confusing me when using this method is that the error is
 // returned twice if any. Once as a field of PingResult and one as a return value.
-func (l *Libp2p) Ping(ctx context.Context, peerIDAddress string, timeout time.Duration) (types.PingResult, error) {
+func (l *Libp2p) Ping(ctx context.Context, peerIDAddress string, timeout time.Duration) (dmsTypes.PingResult, error) {
 	// avoid dial to self attempt
 	if peerIDAddress == l.Host.ID().String() {
 		err := errors.New("can't ping self")
-		return types.PingResult{Success: false, Error: err}, err
+		return dmsTypes.PingResult{Success: false, Error: err}, err
 	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -815,7 +816,7 @@ func (l *Libp2p) Ping(ctx context.Context, peerIDAddress string, timeout time.Du
 
 	remotePeer, err := peer.Decode(peerIDAddress)
 	if err != nil {
-		return types.PingResult{}, err
+		return dmsTypes.PingResult{}, err
 	}
 
 	pingChan := ping.Ping(pingCtx, l.Host, remotePeer)
@@ -824,19 +825,19 @@ func (l *Libp2p) Ping(ctx context.Context, peerIDAddress string, timeout time.Du
 	case res := <-pingChan:
 		if res.Error != nil {
 			log.Errorf("failed to ping peer %s: %v", peerIDAddress, res.Error)
-			return types.PingResult{
+			return dmsTypes.PingResult{
 				Success: false,
 				RTT:     res.RTT,
 				Error:   res.Error,
 			}, res.Error
 		}
 
-		return types.PingResult{
+		return dmsTypes.PingResult{
 			RTT:     res.RTT,
 			Success: true,
 		}, nil
 	case <-pingCtx.Done():
-		return types.PingResult{
+		return dmsTypes.PingResult{
 			Error: pingCtx.Err(),
 		}, pingCtx.Err()
 	}

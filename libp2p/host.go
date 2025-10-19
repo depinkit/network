@@ -42,9 +42,9 @@ import (
 	manet "github.com/multiformats/go-multiaddr/net"
 	mafilt "github.com/whyrusleeping/multiaddr-filter"
 
+	"github.com/depinkit/network/types"
 	libp2pquic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"gitlab.com/nunet/device-management-service/observability"
-	"gitlab.com/nunet/device-management-service/types"
 )
 
 // NewHost returns a new libp2p host with dht and other related settings.

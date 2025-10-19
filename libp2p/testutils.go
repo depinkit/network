@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/depinkit/network/config"
+	"github.com/depinkit/network/types"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	multiaddr "github.com/multiformats/go-multiaddr"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/nunet/device-management-service/types"
 )
 
 func createPeer(t *testing.T, port, quicPort int, bootstrapPeers []multiaddr.Multiaddr, factory ...NetInterfaceFactory) *Libp2p { //nolint
